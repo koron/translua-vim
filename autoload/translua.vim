@@ -54,7 +54,7 @@ endfunction
 
 function! translua#register_luafunc(name, luafunc)
   " FIXME: register a lua function with multiline format.
-  execute "lua " . join(a:luafunc, "; ")
+  execute "lua " . join(a:luafunc, " ")
 endfunction
 
 function! translua#register_vimfunc(name, vimfunc)
