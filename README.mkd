@@ -1,0 +1,7 @@
+# Transalte Vim Function to Lua
+
+```vim
+:call FibBench(25)
+:TransLua Fib
+:call FibBench(25)
+```
