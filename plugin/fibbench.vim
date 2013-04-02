@@ -11,5 +11,6 @@ endfunction
 function! FibBench(n)
   let start = reltime()
   call Fib(a:n)
-  echomsg printf('Fib(%d) in %s secs', a:n, reltimestr(reltime(start)))
+  let time = reltime(start)
+  echomsg printf('Fib(%d) in %s secs', a:n, reltimestr(time))
 endfunction

@@ -28,7 +28,7 @@ function! translua#tovim2(name, vimfunc, luafunc)
   return [
         \ 'function! Fib(n)',
         \ '  let r = [ a:n ]',
-        \ '  lua r = vim.eval("r"); r[0] = Fib(r[0])',
+        \ '  lua local r = vim.eval("r"); r[0] = Fib(r[0])',
         \ '  return r[0]',
         \ 'endfunction',
         \]
@@ -65,7 +65,6 @@ function! translua#main(name)
   let vimfunc = translua#getfunc(a:name)
   let translated = translua#translate(a:name, vimfunc)
   if len(translated) == 0
-    echomsg 'HERE'
     return 0
   endif
   call translua#register_luafunc(a:name, translated.luafunc)
