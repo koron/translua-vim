@@ -17,16 +17,15 @@ function! translua#parsevim(vimfunc)
   return parser.parse(reader)
 endfunction
 
-function! translua#tolua(name, vimfunc)
-  " translate a:vimfunc to a lua function.
-  let vimast = translua#parsevim(a:vimfunc)
-  let lualines = luacompiler#compile(vimast)
+function! translua#tolua(name, vimast)
+  " translate a:vimast to a lua function.
+  let lualines = luacompiler#compile(a:vimast)
   " for debug purpose.
   let g:translua_last = lualines
   return lualines
 endfunction
 
-function! translua#tovim2(name, vimfunc, luafunc)
+function! translua#tovim2(name, vimast)
   " TODO: generate a vim wrapper function.
   return [
         \ 'function! Fib(n)',
@@ -43,8 +42,9 @@ function! translua#translate(name, vimfunc1)
     return {}
   endif
   " Translate a function.
-  let luafunc = translua#tolua(a:name, a:vimfunc1)
-  let vimfunc2 = translua#tovim2(a:name, a:vimfunc1, luafunc)
+  let vimast = translua#parsevim(a:vimfunc1)
+  let luafunc = translua#tolua(a:name, vimast)
+  let vimfunc2 = translua#tovim2(a:name, vimast)
   if len(luafunc) == 0 || len(vimfunc2) == 0
     " FIXME: return error code or so.
     return {}
