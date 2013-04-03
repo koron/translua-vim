@@ -18,20 +18,12 @@ function! translua#parsevim(vimfunc)
 endfunction
 
 function! translua#tolua(name, vimfunc)
+  " translate a:vimfunc to a lua function.
   let vimast = translua#parsevim(a:vimfunc)
   let lualines = luacompiler#compile(vimast)
-  echomsg string(lualines)
-  "return lualines
-  " TODO: translate a:vimfunc to a lua function.
-  return [ 
-        \ 'function Fib(n)',
-        \ '  if n < 2 then',
-        \ '    return n',
-        \ '  else',
-        \ '    return Fib(n - 1) + Fib(n - 2)',
-        \ '  end',
-        \ 'end',
-        \]
+  " for debug purpose.
+  let g:translua_last = lualines
+  return lualines
 endfunction
 
 function! translua#tovim2(name, vimfunc, luafunc)

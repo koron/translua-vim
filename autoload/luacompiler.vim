@@ -10,7 +10,7 @@ function! luacompiler#register_compilers()
   let s:COMPILERS[s:NODE_FUNCTION] = function('s:compile_function')
   "let s:COMPILERS[s:NODE_ENDFUNCTION] = function('s:compile_endfunction')
   "let s:COMPILERS[s:NODE_DELFUNCTION] = function('s:compile_delfunction')
-  "let s:COMPILERS[s:NODE_RETURN] = function('s:compile_return')
+  let s:COMPILERS[s:NODE_RETURN] = function('s:compile_return')
   "let s:COMPILERS[s:NODE_EXCALL] = function('s:compile_excall')
   "let s:COMPILERS[s:NODE_LET] = function('s:compile_let')
   "let s:COMPILERS[s:NODE_UNLET] = function('s:compile_unlet')
@@ -52,7 +52,7 @@ function! luacompiler#register_compilers()
   "let s:COMPILERS[s:NODE_GEQUAL] = function('s:compile_gequal')
   "let s:COMPILERS[s:NODE_GEQUALCI] = function('s:compile_gequalci')
   "let s:COMPILERS[s:NODE_GEQUALCS] = function('s:compile_gequalcs')
-  "let s:COMPILERS[s:NODE_SMALLER] = function('s:compile_smaller')
+  let s:COMPILERS[s:NODE_SMALLER] = function('s:compile_smaller')
   "let s:COMPILERS[s:NODE_SMALLERCI] = function('s:compile_smallerci')
   "let s:COMPILERS[s:NODE_SMALLERCS] = function('s:compile_smallercs')
   "let s:COMPILERS[s:NODE_SEQUAL] = function('s:compile_sequal')
@@ -70,8 +70,8 @@ function! luacompiler#register_compilers()
   "let s:COMPILERS[s:NODE_ISNOT] = function('s:compile_isnot')
   "let s:COMPILERS[s:NODE_ISNOTCI] = function('s:compile_isnotci')
   "let s:COMPILERS[s:NODE_ISNOTCS] = function('s:compile_isnotcs')
-  "let s:COMPILERS[s:NODE_ADD] = function('s:compile_add')
-  "let s:COMPILERS[s:NODE_SUBTRACT] = function('s:compile_subtract')
+  let s:COMPILERS[s:NODE_ADD] = function('s:compile_add')
+  let s:COMPILERS[s:NODE_SUBTRACT] = function('s:compile_subtract')
   "let s:COMPILERS[s:NODE_CONCAT] = function('s:compile_concat')
   "let s:COMPILERS[s:NODE_MULTIPLY] = function('s:compile_multiply')
   "let s:COMPILERS[s:NODE_DIVIDE] = function('s:compile_divide')
@@ -81,9 +81,9 @@ function! luacompiler#register_compilers()
   "let s:COMPILERS[s:NODE_PLUS] = function('s:compile_plus')
   "let s:COMPILERS[s:NODE_SUBSCRIPT] = function('s:compile_subscript')
   "let s:COMPILERS[s:NODE_SLICE] = function('s:compile_slice')
-  "let s:COMPILERS[s:NODE_CALL] = function('s:compile_call')
+  let s:COMPILERS[s:NODE_CALL] = function('s:compile_call')
   "let s:COMPILERS[s:NODE_DOT] = function('s:compile_dot')
-  "let s:COMPILERS[s:NODE_NUMBER] = function('s:compile_number')
+  let s:COMPILERS[s:NODE_NUMBER] = function('s:compile_number')
   "let s:COMPILERS[s:NODE_STRING] = function('s:compile_string')
   "let s:COMPILERS[s:NODE_LIST] = function('s:compile_list')
   "let s:COMPILERS[s:NODE_DICT] = function('s:compile_dict')
@@ -107,14 +107,62 @@ function! s:compile_function(out, node)
 endfunction
 
 function! s:compile_identifier(out, node)
-  if a:node.type != s:NODE_IDENTIFIER
-    throw 'Not identifier: ' . a:node.type
+  let name = a:node.value
+  if name =~# '^[sa]:'
+    let name = name[2:]
   endif
-  call add(a:out, a:node.value)
+  call add(a:out, name)
 endfunction
 
 function! s:compile_if(out, node)
-  echomsg 'TODO: implement me: compile_if'
+  call add(a:out, printf('if %s then', s:tostr(a:node.cond)))
+  call s:compile__body(a:out, a:node.body)
+  " FIXME: support "elseif".
+  if a:node.else isnot s:NIL
+    call add(a:out, 'else')
+    call s:compile__body(a:out, a:node.else.body)
+  endif
+  call add(a:out, 'end')
+endfunction
+
+function! s:compile_smaller(out, node)
+  call s:compile__op2(a:out, a:node, '<')
+endfunction
+
+function! s:compile_number(out, node)
+  call add(a:out, a:node.value)
+endfunction
+
+function! s:compile_return(out, node)
+  if a:node.left is s:NIL
+    call add(a:out, 'return')
+  else
+    call add(a:out, printf('return %s', s:tostr(a:node.left)))
+  endif
+endfunction
+
+function! s:compile_add(out, node)
+  return s:compile__op2(a:out, a:node, '+')
+endfunction
+
+function! s:compile_subtract(out, node)
+  return s:compile__op2(a:out, a:node, '-')
+endfunction
+
+function! s:compile_call(out, node)
+  let name = s:tostr(a:node.left)
+  let args = map(a:node.rlist, 's:tostr(v:val)')
+  " FIXME: filter by function mapper.
+  call add(a:out, printf('%s(%s)', name, join(args, ', ')))
+endfunction
+
+"---------------------------------------------------------------------------
+
+function! s:compile__op2(out, node, op)
+  let left = s:tostr(a:node.left)
+  let right = s:tostr(a:node.right)
+  " FIXME: append "()" considering operators priority.
+  call add(a:out, printf('%s %s %s', left, a:op, right))
 endfunction
 
 function! s:compile__body(out, body)
@@ -138,7 +186,6 @@ function! s:tostr(node)
 endfunction
 
 function! luacompiler#compile(ast)
-  " TODO:
   let out = []
   call s:compile__node(out, a:ast)
   return out
