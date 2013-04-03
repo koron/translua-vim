@@ -88,23 +88,10 @@ function! luacompiler#register_compilers()
   "let s:COMPILERS[s:NODE_LIST] = function('s:compile_list')
   "let s:COMPILERS[s:NODE_DICT] = function('s:compile_dict')
   "let s:COMPILERS[s:NODE_OPTION] = function('s:compile_option')
-  "let s:COMPILERS[s:NODE_IDENTIFIER] = function('s:compile_identifier')
+  let s:COMPILERS[s:NODE_IDENTIFIER] = function('s:compile_identifier')
   "let s:COMPILERS[s:NODE_CURLYNAME] = function('s:compile_curlyname')
   "let s:COMPILERS[s:NODE_ENV] = function('s:compile_env')
   "let s:COMPILERS[s:NODE_REG] = function('s:compile_reg')
-endfunction
-
-function! s:parse_identifier(node)
-  if a:node.type != s:NODE_IDENTIFIER
-    throw 'Not identifier: ' . a:node.type
-  endif
-  return a:node.value
-endfunction
-
-function! s:compile__body(out, body)
-  for node in a:body
-    call luacompiler#compile_node(a:out, node)
-  endfor
 endfunction
 
 function! s:compile_toplevel(out, node)
@@ -112,18 +99,31 @@ function! s:compile_toplevel(out, node)
 endfunction
 
 function! s:compile_function(out, node)
-  let name = s:parse_identifier(a:node.left)
-  let args = map(a:node.rlist, 's:parse_identifier(v:val)')
+  let name = s:tostr(a:node.left)
+  let args = map(a:node.rlist, 's:tostr(v:val)')
   call add(a:out, printf('function %s(%s)', name, join(args, ', ')))
   call s:compile__body(a:out, a:node.body)
   call add(a:out, 'end')
+endfunction
+
+function! s:compile_identifier(out, node)
+  if a:node.type != s:NODE_IDENTIFIER
+    throw 'Not identifier: ' . a:node.type
+  endif
+  call add(a:out, a:node.value)
 endfunction
 
 function! s:compile_if(out, node)
   echomsg 'TODO: implement me: compile_if'
 endfunction
 
-function! luacompiler#compile_node(out, node)
+function! s:compile__body(out, body)
+  for node in a:body
+    call s:compile__node(a:out, node)
+  endfor
+endfunction
+
+function! s:compile__node(out, node)
   if has_key(s:COMPILERS, a:node.type)
     call s:COMPILERS[a:node.type](a:out, a:node)
   else
@@ -131,10 +131,16 @@ function! luacompiler#compile_node(out, node)
   end
 endfunction
 
+function! s:tostr(node)
+  let buf = []
+  call s:compile__node(buf, a:node)
+  return join(buf, "\n")
+endfunction
+
 function! luacompiler#compile(ast)
   " TODO:
   let out = []
-  call luacompiler#compile_node(out, a:ast)
+  call s:compile__node(out, a:ast)
   return out
 endfunction
 
