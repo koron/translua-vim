@@ -100,7 +100,7 @@ endfunction
 
 function! s:compile_function(out, node)
   let name = s:tostr(a:node.left)
-  let args = map(a:node.rlist, 's:tostr(v:val)')
+  let args = map(copy(a:node.rlist), 's:tostr(v:val)')
   call add(a:out, printf('function %s(%s)', name, join(args, ', ')))
   call s:compile__body(a:out, a:node.body)
   call add(a:out, 'end')
@@ -151,7 +151,7 @@ endfunction
 
 function! s:compile_call(out, node)
   let name = s:tostr(a:node.left)
-  let args = map(a:node.rlist, 's:tostr(v:val)')
+  let args = map(copy(a:node.rlist), 's:tostr(v:val)')
   " FIXME: filter by function mapper.
   call add(a:out, printf('%s(%s)', name, join(args, ', ')))
 endfunction
@@ -185,9 +185,26 @@ function! s:tostr(node)
   return join(buf, "\n")
 endfunction
 
+"---------------------------------------------------------------------------
+
 function! luacompiler#compile(ast)
   let out = []
   call s:compile__node(out, a:ast)
+  return out
+endfunction
+
+function! luacompiler#wrapper(ast)
+  let out = []
+  let func = a:ast.body[0]
+  let name = s:tostr(func.left)
+  let args = map(copy(func.rlist), 's:tostr(v:val)')
+  let args1 = map(copy(args), '"a:".v:val')
+  let args2 = map(range(len(args)), '"r[".v:val."]"')
+  call add(out, printf('function! %s(%s)', name, join(args, ', ')))
+  call add(out, printf('let r = [%s]', join(args1, ', ')))
+  call add(out, printf('lua local r = vim.eval("r"); r[0] = %s(%s)', name, join(args2, ', ')))
+  call add(out, 'return r[0]')
+  call add(out, 'endfunction')
   return out
 endfunction
 
