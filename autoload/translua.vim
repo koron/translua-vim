@@ -10,7 +10,18 @@ function! translua#getfunc(name)
   return map(lines, 'substitute(v:val, "\\\m^\\\d*\\\s*  ", "", "")')
 endfunction
 
+function! translua#parsevim(vimfunc)
+  let p = vimlparser#import()
+  let parser = p.VimLParser.new()
+  let reader = p.StringReader.new(a:vimfunc)
+  return parser.parse(reader)
+endfunction
+
 function! translua#tolua(name, vimfunc)
+  let vimast = translua#parsevim(a:vimfunc)
+  let lualines = luacompiler#compile(vimast)
+  echomsg string(lualines)
+  "return lualines
   " TODO: translate a:vimfunc to a lua function.
   return [ 
         \ 'function Fib(n)',
