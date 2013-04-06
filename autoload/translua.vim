@@ -28,7 +28,7 @@ endfunction
 function! translua#tovim2(vimast)
   " generate a vim wrapper function.
   let vimlines = luacompiler#wrapper(a:vimast)
-  let g:translua_lastvim = lualines
+  let g:translua_lastvim = vimlines
   return vimlines
 endfunction
 
