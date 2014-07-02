@@ -5,7 +5,7 @@ call extend(s:, vimlparser#import())
 function! luacompiler#register_compilers()
   let s:COMPILERS = {}
   let s:COMPILERS[s:NODE_TOPLEVEL] = function('s:compile_toplevel')
-  "let s:COMPILERS[s:NODE_COMMENT] = function('s:compile_comment')
+  let s:COMPILERS[s:NODE_COMMENT] = function('s:compile_comment')
   "let s:COMPILERS[s:NODE_EXCMD] = function('s:compile_excmd')
   let s:COMPILERS[s:NODE_FUNCTION] = function('s:compile_function')
   "let s:COMPILERS[s:NODE_ENDFUNCTION] = function('s:compile_endfunction')
@@ -96,6 +96,9 @@ endfunction
 
 function! s:compile_toplevel(out, node)
   call s:compile__body(a:out, a:node.body)
+endfunction
+
+function! s:compile_comment(out, node)
 endfunction
 
 function! s:compile_function(out, node)
