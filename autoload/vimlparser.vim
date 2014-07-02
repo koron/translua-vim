@@ -191,6 +191,7 @@ let s:TOKEN_OR = 60
 let s:TOKEN_SEMICOLON = 61
 let s:TOKEN_BACKTICK = 62
 let s:TOKEN_DOTDOTDOT = 63
+let s:TOKEN_SHARP = 64
 
 let s:MAX_FUNC_ARGS = 20
 
@@ -239,7 +240,7 @@ function! s:isargname(s)
 endfunction
 
 function! s:isvarname(s)
-  return a:s =~# '^[vgslabwt]:$\|^\([vgslabwt]:\)\?[A-Za-z_][0-9A-Za-z_]*$'
+  return a:s =~# '^[vgslabwt]:$\|^\([vgslabwt]:\)\?[A-Za-z_][0-9A-Za-z_#]*$'
 endfunction
 
 " FIXME:
@@ -534,6 +535,8 @@ function! s:VimLParser.parse_command_modifiers()
       call add(modifiers, {'name': 'keepalt'})
     elseif stridx('keepjumps', k) == 0 && len(k) >= 5 " keepj\%[umps]
       call add(modifiers, {'name': 'keepjumps'})
+    elseif stridx('keeppatterns', k) == 0 && len(k) >= 5 " keepp\%[atterns]
+      call add(modifiers, {'name': 'keeppatterns'})
     elseif stridx('hide', k) == 0 && len(k) >= 3 "hid\%[e]
       if self.ends_excmds(c)
         break
@@ -1222,8 +1225,17 @@ function! s:VimLParser.parse_cmd_function()
         let varnode.pos = token.pos
         let varnode.value = token.value
         call add(node.rlist, varnode)
+        " XXX: Vim doesn't skip white space before comma.  F(a ,b) => E475
+        if s:iswhite(self.reader.p(0))
+          throw s:Err(printf('unexpected token: %s', self.reader.p(0)), self.reader.getpos())
+        endif
         let token = tokenizer.get()
         if token.type == s:TOKEN_COMMA
+          " XXX: Vim allows last comma.  F(a, b, ) => OK
+          if tokenizer.peek().type == s:TOKEN_PCLOSE
+            call tokenizer.get()
+            break
+          endif
         elseif token.type == s:TOKEN_PCLOSE
           break
         else
@@ -1944,6 +1956,7 @@ let s:VimLParser.builtin_commands = [
       \ {'name': 'keepalt', 'minlen': 5, 'flags': 'NEEDARG|EXTRA|NOTRLCOM', 'parser': 'parse_cmd_common'},
       \ {'name': 'keepmarks', 'minlen': 3, 'flags': 'NEEDARG|EXTRA|NOTRLCOM', 'parser': 'parse_cmd_common'},
       \ {'name': 'keepjumps', 'minlen': 5, 'flags': 'NEEDARG|EXTRA|NOTRLCOM', 'parser': 'parse_cmd_common'},
+      \ {'name': 'keeppatterns', 'minlen': 5, 'flags': 'NEEDARG|EXTRA|NOTRLCOM', 'parser': 'parse_cmd_common'},
       \ {'name': 'lNext', 'minlen': 2, 'flags': 'RANGE|NOTADR|COUNT|TRLBAR|BANG', 'parser': 'parse_cmd_common'},
       \ {'name': 'lNfile', 'minlen': 3, 'flags': 'RANGE|NOTADR|COUNT|TRLBAR|BANG', 'parser': 'parse_cmd_common'},
       \ {'name': 'list', 'minlen': 1, 'flags': 'RANGE|WHOLEFOLD|COUNT|EXFLAGS|TRLBAR|CMDWIN', 'parser': 'parse_cmd_common'},
@@ -2078,6 +2091,8 @@ let s:VimLParser.builtin_commands = [
       \ {'name': 'py3file', 'minlen': 4, 'flags': 'RANGE|FILE1|NEEDARG|CMDWIN', 'parser': 'parse_cmd_common'},
       \ {'name': 'python', 'minlen': 2, 'flags': 'RANGE|EXTRA|NEEDARG|CMDWIN', 'parser': 'parse_cmd_python'},
       \ {'name': 'pyfile', 'minlen': 3, 'flags': 'RANGE|FILE1|NEEDARG|CMDWIN', 'parser': 'parse_cmd_common'},
+      \ {'name': 'pydo', 'minlen': 3, 'flags': 'RANGE|DFLALL|EXTRA|NEEDARG|CMDWIN', 'parser': 'parse_cmd_common'},
+      \ {'name': 'py3do', 'minlen': 4, 'flags': 'RANGE|DFLALL|EXTRA|NEEDARG|CMDWIN', 'parser': 'parse_cmd_common'},
       \ {'name': 'quit', 'minlen': 1, 'flags': 'BANG|TRLBAR|CMDWIN', 'parser': 'parse_cmd_common'},
       \ {'name': 'quitall', 'minlen': 5, 'flags': 'BANG|TRLBAR', 'parser': 'parse_cmd_common'},
       \ {'name': 'qall', 'minlen': 2, 'flags': 'BANG|TRLBAR|CMDWIN', 'parser': 'parse_cmd_common'},
@@ -2165,6 +2180,7 @@ let s:VimLParser.builtin_commands = [
       \ {'name': 'sview', 'minlen': 2, 'flags': 'BANG|FILE1|RANGE|NOTADR|EDITCMD|ARGOPT|TRLBAR', 'parser': 'parse_cmd_common'},
       \ {'name': 'swapname', 'minlen': 2, 'flags': 'TRLBAR|CMDWIN', 'parser': 'parse_cmd_common'},
       \ {'name': 'syntax', 'minlen': 2, 'flags': 'EXTRA|NOTRLCOM|CMDWIN', 'parser': 'parse_cmd_common'},
+      \ {'name': 'syntime', 'minlen': 5, 'flags': 'NEEDARG|WORD1|TRLBAR|CMDWIN', 'parser': 'parse_cmd_common'},
       \ {'name': 'syncbind', 'minlen': 4, 'flags': 'TRLBAR', 'parser': 'parse_cmd_common'},
       \ {'name': 't', 'minlen': 1, 'flags': 'RANGE|WHOLEFOLD|EXTRA|TRLBAR|CMDWIN|MODIFY', 'parser': 'parse_cmd_common'},
       \ {'name': 'tNext', 'minlen': 2, 'flags': 'RANGE|NOTADR|BANG|TRLBAR|ZEROR', 'parser': 'parse_cmd_common'},
@@ -2486,6 +2502,9 @@ function! s:ExprTokenizer.get2()
   elseif c ==# ':'
     call r.seek_cur(1)
     return self.token(s:TOKEN_COLON, ':', pos)
+  elseif c ==# '#'
+    call r.seek_cur(1)
+    return self.token(s:TOKEN_SHARP, '#', pos)
   elseif c ==# '('
     call r.seek_cur(1)
     return self.token(s:TOKEN_POPEN, '(', pos)
@@ -3035,6 +3054,7 @@ function! s:ExprParser.parse_expr8()
         endif
       endif
       let left = node
+      unlet node
     elseif token.type == s:TOKEN_POPEN
       let node = s:Node(s:NODE_CALL)
       let node.pos = token.pos
@@ -3047,6 +3067,11 @@ function! s:ExprParser.parse_expr8()
           call add(node.rlist, self.parse_expr1())
           let token = self.tokenizer.get()
           if token.type == s:TOKEN_COMMA
+            " XXX: Vim allows foo(a, b, ).  Lint should warn it.
+            if self.tokenizer.peek().type == s:TOKEN_PCLOSE
+              call self.tokenizer.get()
+              break
+            endif
           elseif token.type == s:TOKEN_PCLOSE
             break
           else
@@ -3059,6 +3084,7 @@ function! s:ExprParser.parse_expr8()
         throw s:Err('E740: Too many arguments for function', node.pos)
       endif
       let left = node
+      unlet node
     elseif !s:iswhite(c) && token.type == s:TOKEN_DOT
       let node = self.parse_dot(token, left)
       if node is s:NIL
@@ -3066,6 +3092,7 @@ function! s:ExprParser.parse_expr8()
         break
       endif
       let left = node
+      unlet node
     else
       call self.reader.seek_set(pos)
       break
@@ -3179,6 +3206,10 @@ function! s:ExprParser.parse_expr9()
   elseif token.type == s:TOKEN_IDENTIFIER
     call self.reader.seek_set(pos)
     let node = self.parse_identifier()
+  elseif 0 && (token.type == s:TOKEN_COLON || token.type == s:TOKEN_SHARP)
+    " XXX: no parse error but invalid expression
+    call self.reader.seek_set(pos)
+    let node = self.parse_identifier()
   elseif token.type == s:TOKEN_LT && self.reader.peekn(4) ==? 'SID>'
     call self.reader.seek_set(pos)
     let node = self.parse_identifier()
@@ -3212,6 +3243,7 @@ function! s:ExprParser.parse_dot(token, left)
   let pos = self.reader.getpos()
   let name = self.reader.read_word()
   if s:isnamec(self.reader.p(0))
+    " XXX: foo is str => ok, foo is obj => invalid expression
     " foo.s:bar or foo.bar#baz
     return s:NIL
   endif
@@ -4269,27 +4301,35 @@ let s:RegexpParser.RE_NOMAGIC = 2
 let s:RegexpParser.RE_MAGIC = 3
 let s:RegexpParser.RE_VERY_MAGIC = 4
 
-function s:RegexpParser.new(...)
+function! s:RegexpParser.new(...)
   let obj = copy(self)
   call call(obj.__init__, a:000, obj)
   return obj
 endfunction
 
-function s:RegexpParser.__init__(reader, cmd, delim)
+function! s:RegexpParser.__init__(reader, cmd, delim)
   let self.reader = a:reader
   let self.cmd = a:cmd
   let self.delim = a:delim
   let self.reg_magic = self.RE_MAGIC
 endfunction
 
-function s:RegexpParser.isend(c)
+function! s:RegexpParser.isend(c)
   return a:c ==# '<EOF>' || a:c ==# '<EOL>' || a:c ==# self.delim
 endfunction
 
-function s:RegexpParser.parse_regexp()
+function! s:RegexpParser.parse_regexp()
   let prevtoken = ''
   let ntoken = ''
   let ret = []
+  if self.reader.peekn(4) ==# '\%#='
+    let epos = self.reader.getpos()
+    let token = self.reader.getn(5)
+    if token !=# '\%#=0' && token !=# '\%#=1' && token !=# '\%#=2'
+      throw s:Err('E864: \%#= can only be followed by 0, 1, or 2', epos)
+    endif
+    call add(ret, token)
+  endif
   while !self.isend(self.reader.peek())
     let prevtoken = ntoken
     let [token, ntoken] = self.get_token()
@@ -4340,7 +4380,7 @@ function s:RegexpParser.parse_regexp()
 endfunction
 
 " @return [actual_token, normalized_token]
-function s:RegexpParser.get_token()
+function! s:RegexpParser.get_token()
   if self.reg_magic == self.RE_VERY_MAGIC
     return self.get_token_very_magic()
   elseif self.reg_magic == self.RE_MAGIC
@@ -4352,7 +4392,7 @@ function s:RegexpParser.get_token()
   endif
 endfunction
 
-function s:RegexpParser.get_token_very_magic()
+function! s:RegexpParser.get_token_very_magic()
   if self.isend(self.reader.peek())
     return ['<END>', '<END>']
   endif
@@ -4399,7 +4439,7 @@ function s:RegexpParser.get_token_very_magic()
   return [c, c]
 endfunction
 
-function s:RegexpParser.get_token_magic()
+function! s:RegexpParser.get_token_magic()
   if self.isend(self.reader.peek())
     return ['<END>', '<END>']
   endif
@@ -4450,7 +4490,7 @@ function s:RegexpParser.get_token_magic()
   return [c, c]
 endfunction
 
-function s:RegexpParser.get_token_nomagic()
+function! s:RegexpParser.get_token_nomagic()
   if self.isend(self.reader.peek())
     return ['<END>', '<END>']
   endif
@@ -4501,7 +4541,7 @@ function s:RegexpParser.get_token_nomagic()
   return [c, c]
 endfunction
 
-function s:RegexpParser.get_token_very_nomagic()
+function! s:RegexpParser.get_token_very_nomagic()
   if self.isend(self.reader.peek())
     return ['<END>', '<END>']
   endif
@@ -4550,7 +4590,7 @@ function s:RegexpParser.get_token_very_nomagic()
   return [c, c]
 endfunction
 
-function s:RegexpParser.get_token_backslash_common()
+function! s:RegexpParser.get_token_backslash_common()
   let cclass = 'iIkKfFpPsSdDxXoOwWhHaAlLuU'
   let c = self.reader.get()
   if c ==# '\'
@@ -4626,7 +4666,7 @@ function s:RegexpParser.get_token_backslash_common()
 endfunction
 
 " \{}
-function s:RegexpParser.get_token_brace(pre)
+function! s:RegexpParser.get_token_brace(pre)
   let r = ''
   let minus = ''
   let comma = ''
@@ -4659,7 +4699,7 @@ function s:RegexpParser.get_token_brace(pre)
 endfunction
 
 " \[]
-function s:RegexpParser.get_token_sq(pre)
+function! s:RegexpParser.get_token_sq(pre)
   let start = self.reader.tell()
   let r = ''
   " Complement of range
@@ -4720,7 +4760,7 @@ function s:RegexpParser.get_token_sq(pre)
 endfunction
 
 " [c]
-function s:RegexpParser.get_token_sq_c()
+function! s:RegexpParser.get_token_sq_c()
   let c = self.reader.p(0)
   if c ==# '\'
     call self.reader.seek_cur(1)
@@ -4759,7 +4799,7 @@ function s:RegexpParser.get_token_sq_c()
 endfunction
 
 " [\d123]
-function s:RegexpParser.get_token_sq_coll_char()
+function! s:RegexpParser.get_token_sq_coll_char()
   let pos = self.reader.tell()
   let c = self.reader.get()
   if c ==# 'd'
@@ -4788,7 +4828,7 @@ function s:RegexpParser.get_token_sq_coll_char()
 endfunction
 
 " [[.a.]]
-function s:RegexpParser.get_token_sq_coll_element()
+function! s:RegexpParser.get_token_sq_coll_element()
   if self.reader.p(0) ==# '[' && self.reader.p(1) ==# '.' && !self.isend(self.reader.p(2)) && self.reader.p(3) ==# '.' && self.reader.p(4) ==# ']'
     return self.reader.getn(5)
   endif
@@ -4796,7 +4836,7 @@ function s:RegexpParser.get_token_sq_coll_element()
 endfunction
 
 " [[=a=]]
-function s:RegexpParser.get_token_sq_equi_class()
+function! s:RegexpParser.get_token_sq_equi_class()
   if self.reader.p(0) ==# '[' && self.reader.p(1) ==# '=' && !self.isend(self.reader.p(2)) && self.reader.p(3) ==# '=' && self.reader.p(4) ==# ']'
     return self.reader.getn(5)
   endif
@@ -4804,7 +4844,7 @@ function s:RegexpParser.get_token_sq_equi_class()
 endfunction
 
 " [[:alpha:]]
-function s:RegexpParser.get_token_sq_char_class()
+function! s:RegexpParser.get_token_sq_char_class()
   let class_names = ["alnum", "alpha", "blank", "cntrl", "digit", "graph", "lower", "print", "punct", "space", "upper", "xdigit", "tab", "return", "backspace", "escape"]
   let pos = self.reader.tell()
   if self.reader.p(0) ==# '[' && self.reader.p(1) ==# ':'
@@ -4824,7 +4864,7 @@ function s:RegexpParser.get_token_sq_char_class()
 endfunction
 
 " \@...
-function s:RegexpParser.get_token_at(pre)
+function! s:RegexpParser.get_token_at(pre)
   let epos = self.reader.getpos()
   let c = self.reader.get()
   if c ==# '>'
@@ -4845,7 +4885,7 @@ function s:RegexpParser.get_token_at(pre)
 endfunction
 
 " \%...
-function s:RegexpParser.get_token_percent(pre)
+function! s:RegexpParser.get_token_percent(pre)
   let c = self.reader.get()
   if c ==# '^'
     return [a:pre . '^', '\%^']
@@ -4865,7 +4905,7 @@ function s:RegexpParser.get_token_percent(pre)
 endfunction
 
 " \%[]
-function s:RegexpParser.get_token_percent_sq(pre)
+function! s:RegexpParser.get_token_percent_sq(pre)
   let r = ''
   while 1
     let c = self.reader.peek()
@@ -4885,7 +4925,7 @@ function s:RegexpParser.get_token_percent_sq(pre)
 endfunction
 
 " \%'m \%l \%c \%v
-function s:RegexpParser.get_token_mlvc(pre)
+function! s:RegexpParser.get_token_mlvc(pre)
   let r = ''
   let cmp = ''
   if self.reader.p(0) ==# '<' || self.reader.p(0) ==# '>'
@@ -4920,15 +4960,15 @@ function s:RegexpParser.get_token_mlvc(pre)
   throw s:Err('E71: Invalid character after %', self.reader.getpos())
 endfunction
 
-function s:RegexpParser.getdecchrs()
+function! s:RegexpParser.getdecchrs()
   return self.reader.read_digit()
 endfunction
 
-function s:RegexpParser.getoctchrs()
+function! s:RegexpParser.getoctchrs()
   return self.reader.read_odigit()
 endfunction
 
-function s:RegexpParser.gethexchrs(n)
+function! s:RegexpParser.gethexchrs(n)
   let r = ''
   for i in range(a:n)
     let c = self.reader.peek()
